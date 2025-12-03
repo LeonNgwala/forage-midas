@@ -1,0 +1,26 @@
+general:                                                                                               
+    kafka-topic: midas-transactions                                                                   
+spring:                                                                                                
+  datasource:                                                                                          
+    url: jdbc:h2:mem:midasdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL                                         
+    driverClassName: org.h2.Driver                                                                     
+    username: sa                                                                                       
+    password: password                                                                                 
+  jpa:                                                                                                 
+    database-platform: org.hibernate.dialect.H2Dialect                                                 
+    hibernate:                                                                                         
+    ddl-auto: update                                                                                 
+    show-sql: true                                                                                     
+  h2:                                                                                                  
+    console:                                                                                           
+    enabled: true                                                                                    
+    path: /h2-console                                                                                
+  kafka:                                                                                               
+    consumer:                                                                                          
+      group-id: midas-group                                                                            
+      auto-offset-reset: earliest                                                                      
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: '*'
+    producer:
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer 
