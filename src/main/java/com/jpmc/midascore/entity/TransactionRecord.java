@@ -24,7 +24,10 @@ public class TransactionRecord {
     private BigDecimal amount;
                                                                                                      
     @Column(nullable = false)                                                                          
-    private LocalDateTime timestamp;                                                                   
+    private LocalDateTime timestamp;
+
+    @Column(nullable = false)
+    private BigDecimal incentive;
                                                                                                         
     // Default constructor for JPA                                                                     
     public TransactionRecord() {                                                                       
@@ -36,8 +39,11 @@ public class TransactionRecord {
     this.recipient = recipient;                                                                    
     this.amount = amount;                                                                          
     this.timestamp = timestamp;                                                                    
-    }                                                                                                  
-                                                                                                      
+    }
+
+    public TransactionRecord(UserRecord sender, UserRecord recipient, BigDecimal transactionAmount, BigDecimal incentiveAmount, LocalDateTime now) {
+    }
+
     // Getters and Setters                                                                             
     public Long getId() {                                                                              
     return id;                                                                                     

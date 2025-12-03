@@ -26,7 +26,7 @@ public class UserRecord {
 
     @Override
     public String toString() {
-        return String.format("User[id=%d, name='%s', balance='%f'", id, name, balance.toPlainString());
+        return String.format("User[id=%d, name='%s', balance='%s']", id, name, balance.toPlainString());
     }
 
     public Long getId() {

@@ -1,5 +1,6 @@
 package com.jpmc.midascore.component;
-
+import org.springframework.web.client.RestTemplate;
+import com.jpmc.midascore.foundation.Incentive;
 import com.jpmc.midascore.entity.UserRecord;
 import com.jpmc.midascore.entity.TransactionRecord;
 import com.jpmc.midascore.foundation.Transaction;
@@ -16,6 +17,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+
 @Component
 public class TransactionListener {
    private static final Logger LOG = LoggerFactory.getLogger(TransactionListener.class);
@@ -26,59 +28,60 @@ public class TransactionListener {
    @Autowired
    private TransactionRepository transactionRepository;
 
-   @KafkaListener(topics = "${general.kafka-topic}", groupId = "${spring.kafka.consumer.group-id}")
-   @Transactional
-   public void Listen(Transaction transaction) {
+   @Autowired
+   private RestTemplate restTemplate;
+
+
+    @KafkaListener(topics = "${general.kafka-topic}", groupId = "${spring.kafka.consumer.group-id}")
+    @Transactional
+    public void Listen(Transaction transaction) {
         LOG.info("Received Transaction: {}", transaction);
 
-        // Convert the float amount from the Kafka message to BigDecimal for safe calculations
         BigDecimal transactionAmount = BigDecimal.valueOf(transaction.getAmount());
 
-        // 1. Fetch sender and recipient from the database                                             
+        // 1. Fetch and validate users
         Optional<UserRecord> senderOpt = userRepository.findById(transaction.getSenderId());
         Optional<UserRecord> recipientOpt = userRepository.findById(transaction.getRecipientId());
 
-        // 2. Validate the transaction                                                                 
-        if (senderOpt.isEmpty()) {
-            LOG.warn("Transaction discarded: Sender with ID {} not found.", transaction.getSenderId());
-            return; // Discard transaction
-        }
-
-        if (recipientOpt.isEmpty()) {
-            LOG.warn("Transaction discarded: Recipient with ID {} not found.", transaction.getRecipientId());
-            return; // Discard transaction
+        if (senderOpt.isEmpty() || recipientOpt.isEmpty()) {
+            LOG.warn("Transaction discarded: Sender or Recipient not found.");
+            return;
         }
 
         UserRecord sender = senderOpt.get();
         UserRecord recipient = recipientOpt.get();
 
-        // Check for sufficient balance
         if (sender.getBalance().compareTo(transactionAmount) < 0) {
-            LOG.warn("Transaction discarded: Insufficient balance for sender {}. Required: {}, Available: {}",
-                sender.getName(), transactionAmount, sender.getBalance());
-            return; // Discard transaction
+            LOG.warn("Transaction discarded: Insufficient balance for sender {}.", sender.getName());
+            return;
         }
 
-        // 3. If valid, update balances and record the transaction                                     
         LOG.info("Transaction is valid. Processing...");
 
-        // Update balances
+        String incentiveApiUrl = "http://localhost:8080/incentive";
+        Incentive incentive = restTemplate.postForObject(incentiveApiUrl, transaction, Incentive.class);
+        BigDecimal incentiveAmount = BigDecimal.valueOf(incentive.getAmount());
+        LOG.info("Received incentive amount: {}", incentiveAmount);
+
         sender.setBalance(sender.getBalance().subtract(transactionAmount));
-        recipient.setBalance(recipient.getBalance().add(transactionAmount));                     
+        recipient.setBalance(recipient.getBalance().add(transactionAmount).add(incentiveAmount));
 
         // Save the updated user records
         userRepository.save(sender);
         userRepository.save(recipient);
-                                                                                                         
-        // Create and save the transaction record
-        TransactionRecord transactionRecord = new TransactionRecord( 
-        sender,
-        recipient,
-        transactionAmount,
-        LocalDateTime.now());
+
+
+
+        TransactionRecord transactionRecord = new TransactionRecord(
+                sender,
+                recipient,
+                transactionAmount,
+                incentiveAmount,
+                LocalDateTime.now()
+        );
         transactionRepository.save(transactionRecord);
 
         LOG.info("Successfully processed transaction. New sender balance: {}, New recipient balance: {}",
-        sender.getBalance(), recipient.getBalance());
-   }
+                sender.getBalance(), recipient.getBalance());
+    }
 }
